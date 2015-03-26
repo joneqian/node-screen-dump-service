@@ -1,0 +1,15 @@
+{
+  "name": "screen-dump-service-master",
+  "version": "0.0.1",
+  "description": "screen dump service master",
+  "main": "main.js",
+  "scripts": {
+      "test": "node main.js"
+  },
+  "author": "qianqing",
+  "license": "BSD-2-Clause",
+  "dependencies": {
+      "log4js": "0.6.22",
+      "pm": "2.2.3"
+  }
+}
