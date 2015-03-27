@@ -8,6 +8,7 @@ var config = require('../config/config');
 var ExBuffer = require('../util/ExBuffer');
 var packet = require('../util/package');
 var ByteBuffer = require('../util/ByteBuffer');
+var Readable = require('stream').Readable;
 var COMMAND = config.COMMAND;
 
 var virtual_list = {};
@@ -47,6 +48,8 @@ var server = require('net').createServer(function(socket) {
 				case COMMAND.UPDATE_VIRTUAL_LIST:
 					processVirtualList(socket, buf);
 					break;
+				case COMMAND.UPDATE_VIRTUAL_DUMP:
+					processVirtualDump(socket, buf);
 				default:
 					socket.destroy();
 					return;
@@ -94,9 +97,9 @@ function processRegister(socket, data) {
 	//get key len
 	var len = recv_bytebuf.ushort().unpack();
 	//get key array, key[0] is key len,key[1] is key string
-	var unpack_res = recv_bytebuf.vstring(null, len[0]).unpack();
+	var recv_arr = recv_bytebuf.vstring(null, len[0]).unpack();
 	var isOK = 0;
-	var key = unpack_res[1].split('@@');
+	var key = recv_arr[1].split('@@');
 	if (key.length === 2 && key[0] === config.KEY) {
 		isOK = 1;
 	}
@@ -124,18 +127,16 @@ function processVirtualList(socket, data) {
 		return;
 	}
 	var recv_bytebuf = new ByteBuffer(data).encoding('utf8').bigEndian();
-	//get key len
 	var len = recv_bytebuf.ushort().unpack();
-	//get key array, key[0] is key len,key[1] is key string
-	var arr = recv_bytebuf.vstring(null, len[0]).unpack();
+	var recv_arr = recv_bytebuf.vstring(null, len[0]).unpack();
 	try {
-		var obj = JSON.parse(arr[1]);
+		var obj = JSON.parse(recv_arr[1]);
 		virtual_list[socket_map[socket]] = obj;
 		saveVirtualList();
 
 	} catch (e) {
 		logger_server.error('server(' + process.pid + ') socket(' + socket.remoteAddress + ':' + socket.remotePort + ') json parse error:' + e);
-		logger_server.error('server(' + process.pid + ') socket(' + socket.remoteAddress + ':' + socket.remotePort + ') invalid json:' + arr[1]);
+		logger_server.error('server(' + process.pid + ') socket(' + socket.remoteAddress + ':' + socket.remotePort + ') invalid json:' + recv_arr[1]);
 	}
 }
 
@@ -145,4 +146,20 @@ function saveVirtualList() {
 			logger_server.error('server(' + process.pid + ') socket(' + socket.remoteAddress + ':' + socket.remotePort + ') save virtual list error:' + error);
 		}
 	});
+}
+
+function processVirtualDump(socket, data) {
+	if (!checkSocket(socket)) {
+		return;
+	}
+
+	var recv_bytebuf = new ByteBuffer(data).encoding('utf8').bigEndian();
+	var len = recv_bytebuf.ushort().unpack();
+	var recv_arr = recv_bytebuf.byteArray(null, len[0]).unpack();
+
+	var rs = new Readable;
+	rs.push(recv_arr[1]);
+	rs.push(null);
+	var writestream = fs.createWriteStream(config.Config.VIRTUAL_DUMP_PATH + socket_map[socket] + '.jpg');
+	rs.pipe(writestream);
 }
