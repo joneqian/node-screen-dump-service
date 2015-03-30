@@ -26,13 +26,13 @@ worker.on('suicide', function(by) {
 	logger_server.info('suicide by ' + by);
 });
 
-process.on('uncaughtException', function(error) {
+/*process.on('uncaughtException', function(error) {
 	logger_server.error('Caught Exception:server(' + process.pid + ') ' + error);
-});
+});*/
 
 var server = require('net').createServer(function(socket) {
 
-	var recv_buffer = new ExBuffer().ushortHead().bigEndian();
+	var recv_buffer = new ExBuffer().uint32Head().bigEndian();
 	recv_buffer.on('data', function(data) {
 		packet.unpack(data, function(error, command, buf) {
 			if (error) {
@@ -141,11 +141,17 @@ function processVirtualList(socket, data) {
 }
 
 function saveVirtualList() {
-	fs.writeFile(config.Config.VIRTUAL_LIST_PATH, JSON.stringify(virtual_list), function(error) {
+	/*fs.writeFile(config.Config.VIRTUAL_LIST_PATH, JSON.stringify(virtual_list), function(error) {
 		if (error) {
 			logger_server.error('server(' + process.pid + ') socket(' + socket.remoteAddress + ':' + socket.remotePort + ') save virtual list error:' + error);
 		}
-	});
+	});*/
+
+	var rs = new Readable;
+	rs.push(JSON.stringify(virtual_list));
+	rs.push(null);
+	var writestream = fs.createWriteStream(config.Config.VIRTUAL_LIST_PATH);
+	rs.pipe(writestream);
 }
 
 function processVirtualDump(socket, data) {
@@ -154,11 +160,12 @@ function processVirtualDump(socket, data) {
 	}
 
 	var recv_bytebuf = new ByteBuffer(data).encoding('utf8').bigEndian();
-	var len = recv_bytebuf.ushort().unpack();
+	var len = recv_bytebuf.uint32().unpack();
 	var recv_arr = recv_bytebuf.byteArray(null, len[0]).unpack();
 
 	var rs = new Readable;
-	rs.push(recv_arr[1]);
+	 var buf = new Buffer(recv_arr[1], 'utf8');
+	rs.push(buf);
 	rs.push(null);
 	var writestream = fs.createWriteStream(config.Config.VIRTUAL_DUMP_PATH + socket_map[socket] + '.jpg');
 	rs.pipe(writestream);

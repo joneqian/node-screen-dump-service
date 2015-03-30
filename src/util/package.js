@@ -23,8 +23,8 @@ package.pack = function(commandID, data, cb) {
     buf.write(context);*/
 
     var data_len = data.length;
-    var packet_len = data_len + 2 + 2;
-    var sendbuf = bytebuf.ushort(packet_len).ushort(commandID).byteArray(data, data_len).pack();
+    var packet_len = data_len + 4 + 2;
+    var sendbuf = bytebuf.uint32(packet_len).ushort(commandID).byteArray(data, data_len).pack();
 
     utils.invokeCallback(cb, null, sendbuf);
     return;
