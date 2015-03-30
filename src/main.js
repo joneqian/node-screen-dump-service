@@ -1,6 +1,7 @@
 var logger_normal = require('./components/logger').normal;
 var config = require('./config/config');
 var utils = require("./util/utils");
+var CONFIG = config.Config;
 
 var para_num_err = function() {
 	console.log('Too many or little arguments given.');
@@ -18,19 +19,18 @@ if (process.argv.length > 4 || process.argv.length < 3) {
 };
 
 var arg2 = process.argv[2];
-global.SCREEN_DUMP_PORT = config.Config.SCREEN_DUMP_PORT;
 
 if (arg2 == 'help') {
 	console.log('screen dump service command:');
 	console.log('help: node main.js help');
-	console.log('run service: node main.js server [port]  ----  the default port is ' + config.Config.SCREEN_DUMP_PORT);
-	console.log('run client: node main.js client remotehost[:port]  ----  the default port is ' + config.Config.SCREEN_DUMP_PORT);
+	console.log('run service: node main.js server [port]  ----  the default port is ' + CONFIG.SCREEN_DUMP_PORT);
+	console.log('run client: node main.js client remotehost[:port]  ----  the default port is ' + CONFIG.SCREEN_DUMP_PORT);
 	process.exit(0);
 } else if (arg2 == 'server') {
 	if (process.argv[3] !== undefined) {
 		var arg3 = Number(process.argv[3]);
 		if (!isNaN(arg3)) {
-			global.SCREEN_DUMP_PORT = arg3;
+			CONFIG.SCREEN_DUMP_PORT = arg3;
 		} else {
 			para_unknown_err();
 		}
@@ -42,10 +42,10 @@ if (arg2 == 'help') {
 	}
 	var remote_addr = arg3.split(':');
 	if (remote_addr.length === 1 && utils.isIP(remote_addr[0])) {
-		global.SCREEN_DUMP_HOST = remote_addr[0];
+		CONFIG.SCREEN_DUMP_HOST = remote_addr[0];
 	} else if (remote_addr.length === 2 && utils.isIP(remote_addr[0]) && !isNaN(Number(remote_addr[1]))) {
-		global.SCREEN_DUMP_HOST = remote_addr[0];
-		global.SCREEN_DUMP_PORT = remote_addr[1];
+		CONFIG.SCREEN_DUMP_HOST = remote_addr[0];
+		CONFIG.SCREEN_DUMP_PORT = remote_addr[1];
 	} else {
 		para_unknown_err();
 	}
@@ -81,10 +81,20 @@ app.on('quit', function(name, pid, code, signal) {
 		new Date(), process.pid, name, pid, code, signal);
 });
 
-app.register('assetService', __dirname + '/components/server.js', {
-	'listen': [global.SCREEN_DUMP_PORT],
-	'children': 2
-});
+if (arg2 == 'server') {
+	app.register('assetService', __dirname + '/components/server.js', {
+		'listen': [CONFIG.SCREEN_DUMP_PORT],
+		'children': 2
+	});
+} else if (arg2 == 'client') {
+	app.register('assetService', __dirname + '/components/client.js', {
+		'children': 1
+	});
+} else {
+	logger_normal.error('Invalid module: ' + arg2);
+	process.exit(1);
+}
+
 
 
 app.dispatch();

@@ -3,13 +3,13 @@ var logger_server = require('./logger').server;
 var url = require('url');
 var fs = require('fs');
 var path = require('path');
-var mime = require('../config/mime').types;
 var config = require('../config/config');
 var ExBuffer = require('../util/ExBuffer');
 var packet = require('../util/package');
 var ByteBuffer = require('../util/ByteBuffer');
 var Readable = require('stream').Readable;
 var COMMAND = config.COMMAND;
+var CONFIG = config.Config;
 
 var virtual_list = {};
 var socket_map = new Array();
@@ -26,9 +26,13 @@ worker.on('suicide', function(by) {
 	logger_server.info('suicide by ' + by);
 });
 
-/*process.on('uncaughtException', function(error) {
+process.on('uncaughtException', function(error) {
 	logger_server.error('Caught Exception:server(' + process.pid + ') ' + error);
-});*/
+});
+
+process.on('exit', function (code) {
+      logger_server.info('server(' + process.pid + ')  is closed(' + code + ').');
+});
 
 var server = require('net').createServer(function(socket) {
 
@@ -100,7 +104,7 @@ function processRegister(socket, data) {
 	var recv_arr = recv_bytebuf.vstring(null, len[0]).unpack();
 	var isOK = 0;
 	var key = recv_arr[1].split('@@');
-	if (key.length === 2 && key[0] === config.KEY) {
+	if (key.length === 2 && key[0] === CONFIG.KEY) {
 		isOK = 1;
 	}
 
@@ -141,7 +145,7 @@ function processVirtualList(socket, data) {
 }
 
 function saveVirtualList() {
-	/*fs.writeFile(config.Config.VIRTUAL_LIST_PATH, JSON.stringify(virtual_list), function(error) {
+	/*fs.writeFile(CONFIG.VIRTUAL_LIST_PATH, JSON.stringify(virtual_list), function(error) {
 		if (error) {
 			logger_server.error('server(' + process.pid + ') socket(' + socket.remoteAddress + ':' + socket.remotePort + ') save virtual list error:' + error);
 		}
@@ -150,7 +154,7 @@ function saveVirtualList() {
 	var rs = new Readable;
 	rs.push(JSON.stringify(virtual_list));
 	rs.push(null);
-	var writestream = fs.createWriteStream(config.Config.VIRTUAL_LIST_PATH);
+	var writestream = fs.createWriteStream(CONFIG.VIRTUAL_LIST_PATH);
 	rs.pipe(writestream);
 }
 
@@ -167,6 +171,6 @@ function processVirtualDump(socket, data) {
 	 var buf = new Buffer(recv_arr[1], 'utf8');
 	rs.push(buf);
 	rs.push(null);
-	var writestream = fs.createWriteStream(config.Config.VIRTUAL_DUMP_PATH + socket_map[socket] + '.jpg');
+	var writestream = fs.createWriteStream(CONFIG.VIRTUAL_DUMP_PATH + socket_map[socket] + '.jpg');
 	rs.pipe(writestream);
 }

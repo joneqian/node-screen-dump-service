@@ -1,8 +1,10 @@
 exports.Config = {
 	LOG_PATH: process.cwd() + '/logs/log',
 	SCREEN_DUMP_PORT: 1201,
+	SCREEN_DUMP_HOST: '127.0.0.1',
 	VIRTUAL_LIST_PATH: '/home/qianqing/src/node-static-file-service/src/assets/device_catalog/virtual_list.json',
-	VIRTUAL_DUMP_PATH: '/home/qianqing/src/node-static-file-service/src/assets/screen_dump/'
+	VIRTUAL_DUMP_PATH: '/home/qianqing/src/node-static-file-service/src/assets/screen_dump/',
+	KEY: 'sanlogic'
 };
 
 exports.COMMAND = {
@@ -11,5 +13,3 @@ exports.COMMAND = {
 	UPDATE_VIRTUAL_LIST: 3,
 	UPDATE_VIRTUAL_DUMP:4
 };
-
-exports.KEY = 'sanlogic';
