@@ -1,5 +1,6 @@
 var worker = require('pm').createWorker();
 var logger_client = require('./logger').client;
+var exec = require('child_process').exec;
 var url = require('url');
 var fs = require('fs');
 var path = require('path');
@@ -10,6 +11,7 @@ var ByteBuffer = require('../util/ByteBuffer');
 var Readable = require('stream').Readable;
 var COMMAND = config.COMMAND;
 var CONFIG = config.Config;
+var SCREENSHOT_PATH = process.cwd() + '/ScreenShotFile'
 
 var client = null;
 var heartbeatInterval = null;
@@ -38,9 +40,9 @@ process.on('exit', function() {
 	}
 });
 
-/*process.on('uncaughtException', function(err) {
+process.on('uncaughtException', function(err) {
 	logger_client.error('Caught Exception:' + err);
-});*/
+});
 
 connectServer();
 
@@ -49,17 +51,17 @@ function connectServer() {
 		client.destroy();
 		client = undefined;
 	}
-	client = new  require('net').Socket();
+	client = new require('net').Socket();
 
 	client.connect(CONFIG.SCREEN_DUMP_PORT, CONFIG.SCREEN_DUMP_HOST, function() {
-		logger_client.debug('connect to: ' + CONFIG.SCREEN_DUMP_PORT + ':' + CONFIG.SCREEN_DUMP_HOST);
+		logger_client.debug('connect to: ' + CONFIG.SCREEN_DUMP_HOST + ':' + CONFIG.SCREEN_DUMP_PORT);
 		connectedStatus = true;
 		exBuffer = undefined;
 		exBuffer = new ExBuffer().uint32Head().bigEndian();
 		exBuffer.on('data', function(data) {
 			packet.unpack(data, function(error, command, buf) {
 				if (error) {
-					logger_client.error('server(' + process.pid + ') socket(' + socket.remoteAddress + ':' + socket.remotePort + ') unpack error:' + error);
+					logger_client.error('client(' + process.pid + ') unpack error:' + error);
 					return;
 				}
 
@@ -122,9 +124,17 @@ function processRegister(data) {
 		registerStatus = true;
 		logger_client.info('client(' + process.pid + ') register successfully.');
 	} else {
-		logger_client.error('client(' + process.pid + ') register fail.' );
+		logger_client.error('client(' + process.pid + ') register fail.');
 		registerStatus = false;
 	}
+}
+
+function processPPMtoJPG(in_file, out_file) {
+	exec('python ' + process.cwd()  +'/shell/ppm.py ' + in_file + ' ' + out_file + ' ', function(error, stdout, stderr) {
+		if (error) {
+			logger_client.error('client(' + process.pid + ') processPPMtoJPG fail: ' + error);
+		}
+	});
 }
 
 connectInterval = setInterval(function() {
