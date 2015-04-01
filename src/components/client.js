@@ -14,10 +14,12 @@ var CONFIG = config.Config;
 var SCREENSHOT_PATH = process.cwd() + '/ScreenShotFile'
 
 var client = null;
-var heartbeatInterval = null;
-var heartbeatTimeout = 30000;
 var connectTimeout = 30000;
 var connectInterval = null;
+var virshlistTimeout = 10000;
+var virshlistInterval = null;
+var virshscreenTimeout = 5000;
+var virshscreenInterval = null;
 var exBuffer = null;
 var registerStatus = false;
 var connectedStatus = false;
@@ -38,13 +40,21 @@ process.on('exit', function() {
 		clearInterval(connectInterval);
 		connectInterval = undefined;
 	}
+
+	if (virshlistInterval) {
+		clearInterval(virshlistInterval);
+		virshlistInterval = undefined;
+	}
+
+	if (virshscreenInterval) {
+		clearInterval(virshscreenInterval);
+		virshscreenInterval = undefined;
+	}
 });
 
 process.on('uncaughtException', function(err) {
 	logger_client.error('Caught Exception:' + err);
 });
-
-connectServer();
 
 function connectServer() {
 	if (client) {
@@ -95,7 +105,6 @@ function connectServer() {
 	// 为客户端添加“error”事件处理函数
 	client.on('error', function(error) {
 		logger_client.error('client(' + process.pid + ') tcp socket err:' + error);
-		client.close();
 	});
 }
 
@@ -130,15 +139,47 @@ function processRegister(data) {
 }
 
 function processPPMtoJPG(in_file, out_file) {
-	exec('python ' + process.cwd()  +'/shell/ppm.py ' + in_file + ' ' + out_file + ' ', function(error, stdout, stderr) {
+	exec('python ' + process.cwd() + '/shell/ppm.py ' + in_file + ' ' + out_file + ' ', function(error, stdout, stderr) {
 		if (error) {
-			logger_client.error('client(' + process.pid + ') processPPMtoJPG fail: ' + error);
+			logger_client.error('client(' + process.pid + ') processPPMtoJPG fail: ' + stderr);
+			return;
 		}
 	});
 }
+
+function virshlistUpdate() {
+	exec('python ' + process.cwd() + '/shell/virsh_list.py', function(error, stdout, stderr) {
+		if (error) {
+			logger_client.error('client(' + process.pid + ') virshlistUpdate fail: ' + stderr);
+			return;
+		}
+		var bytebuf = new ByteBuffer().encoding('utf8').bigEndian();
+		var buf_len = Buffer.byteLength(stdout);
+		var buf = new Buffer(buf_len);
+		buf.write(stdout);
+		var sendbuf = bytebuf.ushort(buf_len).byteArray(buf, buf_len).pack();
+		packet.pack(COMMAND.UPDATE_VIRTUAL_LIST, sendbuf, function(err, buf) {
+			if (err) {
+				logger_client.error('update virsh list pack error: ' + err);
+				return;
+			}
+
+			client.write(buf);
+		});
+
+	});
+}
+
+connectServer();
 
 connectInterval = setInterval(function() {
 	if (!connectedStatus) {
 		connectServer();
 	}
 }, connectTimeout);
+
+virshlistInterval = setInterval(function() {
+	if (registerStatus) {
+		virshlistUpdate();
+	}
+}, virshlistTimeout);
