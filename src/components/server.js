@@ -3,13 +3,13 @@ var logger_server = require('./logger').server;
 var url = require('url');
 var fs = require('fs');
 var path = require('path');
-var config = require('../config/config');
+var SERVER_CONFIG = require('../config/config').SERVER_CONFIG;
+var COMMAND = require('../config/config').COMMAND;
+var COMMON_CONFIG = require('../config/config').COMMON_CONFIG;
 var ExBuffer = require('../util/ExBuffer');
 var packet = require('../util/package');
 var ByteBuffer = require('../util/ByteBuffer');
 var Readable = require('stream').Readable;
-var COMMAND = config.COMMAND;
-var CONFIG = config.Config;
 
 var virtual_list = {};
 var socket_map = new Array();
@@ -54,6 +54,7 @@ var server = require('net').createServer(function(socket) {
 					break;
 				case COMMAND.UPDATE_VIRTUAL_DUMP:
 					processVirtualDump(socket, buf);
+					break;
 				default:
 					socket.destroy();
 					return;
@@ -101,10 +102,11 @@ function processRegister(socket, data) {
 	//get key len
 	var len = recv_bytebuf.ushort().unpack();
 	//get key array, key[0] is key len,key[1] is key string
-	var recv_arr = recv_bytebuf.vstring(null, len[0]).unpack();
+	var recv_arr = recv_bytebuf.byteArray(null, len[0]).unpack();
 	var isOK = 0;
-	var key = recv_arr[1].split('@@');
-	if (key.length === 2 && key[0] === CONFIG.KEY) {
+	var key = new Buffer(recv_arr[1]);
+	key = key.toString().split('@@');
+	if (key.length === 2 && key[0] === COMMON_CONFIG.KEY) {
 		isOK = 1;
 	}
 
@@ -132,9 +134,10 @@ function processVirtualList(socket, data) {
 	}
 	var recv_bytebuf = new ByteBuffer(data).encoding('utf8').bigEndian();
 	var len = recv_bytebuf.ushort().unpack();
-	var recv_arr = recv_bytebuf.vstring(null, len[0]).unpack();
+	var recv_arr = recv_bytebuf.byteArray(null, len[0]).unpack();
 	try {
-		var obj = JSON.parse(recv_arr[1]);
+		var buf = new  Buffer(recv_arr[1]);
+		var obj = JSON.parse(buf.toString());
 		virtual_list[socket_map[socket]] = obj;
 		saveVirtualList();
 
@@ -145,7 +148,7 @@ function processVirtualList(socket, data) {
 }
 
 function saveVirtualList() {
-	/*fs.writeFile(CONFIG.VIRTUAL_LIST_PATH, JSON.stringify(virtual_list), function(error) {
+	/*fs.writeFile(SERVER_CONFIG.VIRTUAL_LIST_PATH, JSON.stringify(virtual_list), function(error) {
 		if (error) {
 			logger_server.error('server(' + process.pid + ') socket(' + socket.remoteAddress + ':' + socket.remotePort + ') save virtual list error:' + error);
 		}
@@ -154,7 +157,7 @@ function saveVirtualList() {
 	var rs = new Readable;
 	rs.push(JSON.stringify(virtual_list));
 	rs.push(null);
-	var writestream = fs.createWriteStream(CONFIG.VIRTUAL_LIST_PATH);
+	var writestream = fs.createWriteStream(SERVER_CONFIG.VIRTUAL_LIST_PATH);
 	rs.pipe(writestream);
 }
 
@@ -164,13 +167,14 @@ function processVirtualDump(socket, data) {
 	}
 
 	var recv_bytebuf = new ByteBuffer(data).encoding('utf8').bigEndian();
-	var len = recv_bytebuf.uint32().unpack();
-	var recv_arr = recv_bytebuf.byteArray(null, len[0]).unpack();
+	var len = recv_bytebuf.ushort().uint32().unpack();
+	var recv_arr = recv_bytebuf.byteArray(null, len[0]).byteArray(null, len[1]).unpack();
 
+	var fileName = new Buffer(recv_arr[2]);
 	var rs = new Readable;
-	 var buf = new Buffer(recv_arr[1], 'utf8');
+	 var buf = new Buffer(recv_arr[3], 'utf8');
 	rs.push(buf);
 	rs.push(null);
-	var writestream = fs.createWriteStream(CONFIG.VIRTUAL_DUMP_PATH + socket_map[socket] + '.jpg');
+	var writestream = fs.createWriteStream(SERVER_CONFIG.VIRTUAL_DUMP_PATH + fileName );
 	rs.pipe(writestream);
 }

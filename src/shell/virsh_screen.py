@@ -40,7 +40,6 @@ def _get_dom(vm_):
     '''
     Return a domain object for the named vm
     '''
-    conn = __get_conn()
     if vm_ not in list_vms():
         raise Exception('get_dom','The specified vm is not present')
     return conn.lookupByName(vm_)
@@ -66,7 +65,6 @@ def list_active_vms():
    
         salt '*' virt.list_active_vms
     '''
-    conn = __get_conn()
     vms = []
     for id_ in conn.listDomainsID():
         vms.append(conn.lookupByID(id_).name())
@@ -76,21 +74,31 @@ def screenshot(vm_=None):
     '''
     Return detailed information about the vms on this hyper in a
     '''
-    def _shot(vm_):
-        file_ppm = SCREEN_FILE_PATH + vm_ + '.ppm'
-        file_jpg = SCREEN_FILE_PATH + vm_ + '.jpg'
-        cmd = 'virsh screenshot ' + vm_ + ' ' + SCREEN_FILE_PATH + vm_ + '.ppm'
-        ret = commands.getstatusoutput(cmd)
-        if ret[0]==0:
-            im = Image.open(file_ppm)
-            im.save(file_jpg)
-        return
-    if vm_:
-        _shot(vm_)
-    else:
-        for vm_ in list_vms():
+    try:
+        images = []
+        def _shot(vm_):
+            file_ppm = SCREEN_FILE_PATH + vm_ + '.ppm'
+            file_jpg = SCREEN_FILE_PATH + vm_ + '.jpg'
+            cmd = 'virsh screenshot ' + vm_ + ' ' + SCREEN_FILE_PATH + vm_ + '.ppm'
+            ret = commands.getstatusoutput(cmd)
+            if ret[0]==0:
+                im = Image.open(file_ppm)
+                im.save(file_jpg)
+                images.append(vm_ + '.jpg')
+            return
+        if vm_:
             _shot(vm_)
-    return
+        else:
+            for vm_ in list_vms():
+                _shot(vm_)
+        conn.close()
+        return images
+    except Exception:
+        raise Exception('screenshot','screenshot exception ')
+        conn.close()
+        sys.exit(1)
+        
 
-screenshot()
+conn = __get_conn()
+sys.stdout.write(json.dumps(screenshot()))
 sys.exit(0)

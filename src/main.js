@@ -1,17 +1,16 @@
 var logger_normal = require('./components/logger').normal;
-var config = require('./config/config');
+var COMMON_CONFIG = require('./config/config').COMMON_CONFIG;
 var utils = require("./util/utils");
-var CONFIG = config.Config;
 
 var para_num_err = function() {
 	console.log('Too many or little arguments given.');
 	console.log("Use 'node main.js help'.");
-	process.exit(0);
+	process.exit(1);
 };
 
 var para_unknown_err = function() {
 	console.log("Unknown command.Plese run 'node main.js help' .");
-	process.exit(0);
+	process.exit(1);
 };
 
 if (process.argv.length > 4 || process.argv.length < 3) {
@@ -23,14 +22,14 @@ var arg2 = process.argv[2];
 if (arg2 == 'help') {
 	console.log('screen dump service command:');
 	console.log('help: node main.js help');
-	console.log('run service: node main.js server [port]  ----  the default port is ' + CONFIG.SCREEN_DUMP_PORT);
-	console.log('run client: node main.js client remotehost[:port]  ----  the default port is ' + CONFIG.SCREEN_DUMP_PORT);
+	console.log('run service: node main.js server [port]  ----  the default port is ' + COMMON_CONFIG.SCREEN_DUMP_PORT);
+	console.log('run client: node main.js client remotehost[:port]  ----  the default port is ' + COMMON_CONFIG.SCREEN_DUMP_PORT);
 	process.exit(0);
 } else if (arg2 == 'server') {
 	if (process.argv[3] !== undefined) {
 		var arg3 = Number(process.argv[3]);
 		if (!isNaN(arg3)) {
-			CONFIG.SCREEN_DUMP_PORT = arg3;
+			COMMON_CONFIG.SCREEN_DUMP_PORT = arg3;
 		} else {
 			para_unknown_err();
 		}
@@ -42,10 +41,10 @@ if (arg2 == 'help') {
 	}
 	var remote_addr = arg3.split(':');
 	if (remote_addr.length === 1 && utils.isIP(remote_addr[0])) {
-		CONFIG.SCREEN_DUMP_HOST = remote_addr[0];
+		COMMON_CONFIG.SCREEN_DUMP_HOST = remote_addr[0];
 	} else if (remote_addr.length === 2 && utils.isIP(remote_addr[0]) && !isNaN(Number(remote_addr[1]))) {
-		CONFIG.SCREEN_DUMP_HOST = remote_addr[0];
-		CONFIG.SCREEN_DUMP_PORT = remote_addr[1];
+		COMMON_CONFIG.SCREEN_DUMP_HOST = remote_addr[0];
+		COMMON_CONFIG.SCREEN_DUMP_PORT = remote_addr[1];
 	} else {
 		para_unknown_err();
 	}
@@ -54,10 +53,20 @@ if (arg2 == 'help') {
 	para_unknown_err();
 }
 
-var app = require('pm').createMaster({
-	'pidfile': __dirname + 'screen-dump-service.pid',
-	'statusfile': __dirname + 'status.log'
-});
+var app = undefined;
+if (arg2 == 'client') {
+	app = require('pm').createMaster({
+		'pidfile': __dirname + 'screen-dump-service-client.pid',
+		'statusfile': __dirname + 'status-client.log'
+	});
+}
+
+if (arg2 == 'server') {
+	app = require('pm').createMaster({
+		'pidfile': __dirname + 'screen-dump-service-server.pid',
+		'statusfile': __dirname + 'status-server.log'
+	});
+}
 
 app.on('giveup', function(name, fatals, pause) {
 	// YOU SHOULD ALERT HERE!
@@ -83,7 +92,7 @@ app.on('quit', function(name, pid, code, signal) {
 
 if (arg2 == 'server') {
 	app.register('assetService', __dirname + '/components/server.js', {
-		'listen': [CONFIG.SCREEN_DUMP_PORT],
+		'listen': [COMMON_CONFIG.SCREEN_DUMP_PORT],
 		'children': 2
 	});
 } else if (arg2 == 'client') {

@@ -1,12 +1,12 @@
 var log4js = require('log4js');
-var config = require('../config/config');
+var COMMON_CONFIG = require('../config/config').COMMON_CONFIG;
 
 log4js.configure({
   appenders: [{
     type: 'console'
   }, {
     type: 'file',
-    filename: config.Config.LOG_PATH,
+    filename: COMMON_CONFIG.LOG_PATH,
     pattern: '_yyyy-MM-dd',
     maxLogSize: 20480,
     alwaysIncludePattern: false,

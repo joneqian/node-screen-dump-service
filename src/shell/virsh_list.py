@@ -35,7 +35,6 @@ def _get_dom(vm_):
     '''
     Return a domain object for the named vm
     '''
-    conn = __get_conn()
     if vm_ not in list_vms():
         raise Exception('get_dom','The specified vm is not present')
     return conn.lookupByName(vm_)
@@ -62,7 +61,6 @@ def list_active_vms():
    
         salt '*' virt.list_active_vms
     '''
-    conn = __get_conn()
     vms = []
     for id_ in conn.listDomainsID():
         vms.append(conn.lookupByID(id_).name())
@@ -77,7 +75,6 @@ def list_inactive_vms():
    
         salt '*' virt.list_inactive_vms
     '''
-    conn = __get_conn()
     vms = []
     for id_ in conn.listDefinedDomains():
         vms.append(id_)
@@ -87,16 +84,24 @@ def vm_info(vm_=None):
     '''
     Return detailed information about the vms on this hyper in a
     '''
-    def _info(vm_):
-        dom = _get_dom(vm_)
-        raw = dom.info()
-        return {'state': VIRT_STATE_NAME_MAP.get(raw[0], 'unknown')}
-    info = {}
-    if vm_:
-        info[vm_] = _info(vm_)
-    else:
-        for vm_ in list_vms():
+    try:
+        def _info(vm_):
+            dom = _get_dom(vm_)
+            raw = dom.info()
+            return {'state': VIRT_STATE_NAME_MAP.get(raw[0], 'unknown')}
+        info = {}
+        if vm_:
             info[vm_] = _info(vm_)
-    return info
+        else:
+            for vm_ in list_vms():
+                info[vm_] = _info(vm_)
+        conn.close()
+        return info
+    except Exception:
+        raise Exception('vm_info','vm_info exception ')
+        conn.close()
+        sys.exit(1)
+        
 
+conn = __get_conn()
 sys.stdout.write(json.dumps(vm_info()))

@@ -1,17 +1,14 @@
 var worker = require('pm').createWorker();
 var logger_client = require('./logger').client;
 var exec = require('child_process').exec;
-var url = require('url');
 var fs = require('fs');
-var path = require('path');
-var config = require('../config/config');
+var COMMON_CONFIG = require('../config/config').COMMON_CONFIG;
+var COMMAND = require('../config/config').COMMAND;
+var CLIENT_CONFIG = require('../config/config').CLIENT_CONFIG;
 var ExBuffer = require('../util/ExBuffer');
 var packet = require('../util/package');
 var ByteBuffer = require('../util/ByteBuffer');
-var Readable = require('stream').Readable;
-var COMMAND = config.COMMAND;
-var CONFIG = config.Config;
-var SCREENSHOT_PATH = process.cwd() + '/ScreenShotFile'
+var BufferHelper = require('../util/BufferHelper');
 
 var client = null;
 var connectTimeout = 30000;
@@ -63,8 +60,8 @@ function connectServer() {
 	}
 	client = new require('net').Socket();
 
-	client.connect(CONFIG.SCREEN_DUMP_PORT, CONFIG.SCREEN_DUMP_HOST, function() {
-		logger_client.debug('connect to: ' + CONFIG.SCREEN_DUMP_HOST + ':' + CONFIG.SCREEN_DUMP_PORT);
+	client.connect(COMMON_CONFIG.SCREEN_DUMP_PORT, COMMON_CONFIG.SCREEN_DUMP_HOST, function() {
+		logger_client.debug('connect to: ' + COMMON_CONFIG.SCREEN_DUMP_HOST + ':' + COMMON_CONFIG.SCREEN_DUMP_PORT);
 		connectedStatus = true;
 		exBuffer = undefined;
 		exBuffer = new ExBuffer().uint32Head().bigEndian();
@@ -110,7 +107,7 @@ function connectServer() {
 
 function sendRegisterReq() {
 	var bytebuf = new ByteBuffer().encoding('utf8').bigEndian();
-	var key = CONFIG.KEY + '@@' + require("os").hostname();
+	var key = COMMON_CONFIG.KEY + '@@' + require("os").hostname();
 	var buf_len = Buffer.byteLength(key);
 	var buf = new Buffer(buf_len);
 	buf.write(key);
@@ -138,17 +135,8 @@ function processRegister(data) {
 	}
 }
 
-function processPPMtoJPG(in_file, out_file) {
-	exec('python ' + process.cwd() + '/shell/ppm.py ' + in_file + ' ' + out_file + ' ', function(error, stdout, stderr) {
-		if (error) {
-			logger_client.error('client(' + process.pid + ') processPPMtoJPG fail: ' + stderr);
-			return;
-		}
-	});
-}
-
 function virshlistUpdate() {
-	exec('python ' + process.cwd() + '/shell/virsh_list.py', function(error, stdout, stderr) {
+	exec('python ' + CLIENT_CONFIG.VIRSH_LIST_SHELL, function(error, stdout, stderr) {
 		if (error) {
 			logger_client.error('client(' + process.pid + ') virshlistUpdate fail: ' + stderr);
 			return;
@@ -170,6 +158,19 @@ function virshlistUpdate() {
 	});
 }
 
+function virshscreenUpdate(cb) {
+	exec('python ' + CLIENT_CONFIG.VIRSH_SCREN_SHELL + ' ' + CLIENT_CONFIG.SCREENSHOT_PATH, function(error, stdout, stderr) {
+		if (error) {
+			logger_client.error('client(' + process.pid + ') virshscreenUpdate fail: ' + stderr);
+			return;
+		}
+		var screenshot_list = JSON.parse(stdout);
+		for (var i = 0; i < screenshot_list.length; i++) {
+			cb(screenshot_list[i]);
+		};
+	});
+}
+
 connectServer();
 
 connectInterval = setInterval(function() {
@@ -183,3 +184,34 @@ virshlistInterval = setInterval(function() {
 		virshlistUpdate();
 	}
 }, virshlistTimeout);
+
+virshscreenInterval = setInterval(function() {
+	if (registerStatus) {
+		virshscreenUpdate(function(fileName) {
+			var readStream = fs.createReadStream(CLIENT_CONFIG.SCREENSHOT_PATH + fileName);
+			var bufferHelper = new BufferHelper();
+
+			readStream.on('data', function(chunk) { // 当有数据流出时，写入数据
+				bufferHelper.concat(chunk);
+			});
+
+			readStream.on('end', function(chunk) { // 当有数据流出时，写入数据
+				var bytebuf = new ByteBuffer().encoding('utf8').bigEndian();
+				var fileData = bufferHelper.toBuffer();
+
+				var name_len = Buffer.byteLength(fileName);
+				var namebuf = new Buffer(name_len);
+				namebuf.write(fileName);
+
+				var sendbuf = bytebuf.ushort(name_len).uint32(fileData.length).byteArray(namebuf, name_len).byteArray(fileData, fileData.length).pack();
+				packet.pack(COMMAND.UPDATE_VIRTUAL_DUMP, sendbuf, function(err, buf) {
+					if (err) {
+						console.error('pack error: ' + err);
+						return;
+					}
+					client.write(buf);
+				});
+			});
+		});
+	}
+}, virshscreenTimeout);
