@@ -96,7 +96,7 @@ function connectServer() {
 	client.on('close', function() {
 		logger_client.debug('client(' + process.pid + ') connection closed');
 		registerStatus = false;
-		connectedStatus = false;;
+		connectedStatus = false;
 	});
 
 	// 为客户端添加“error”事件处理函数
@@ -167,7 +167,7 @@ function virshscreenUpdate(cb) {
 		var screenshot_list = JSON.parse(stdout);
 		for (var i = 0; i < screenshot_list.length; i++) {
 			cb(screenshot_list[i]);
-		};
+		}
 	});
 }
 

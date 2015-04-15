@@ -15,9 +15,10 @@ var para_unknown_err = function() {
 
 if (process.argv.length > 4 || process.argv.length < 3) {
 	para_num_err();
-};
+}
 
 var arg2 = process.argv[2];
+var arg3 = process.argv[3];
 
 if (arg2 == 'help') {
 	console.log('screen dump service command:');
@@ -26,8 +27,8 @@ if (arg2 == 'help') {
 	console.log('run client: node main.js client remotehost[:port]  ----  the default port is ' + COMMON_CONFIG.SCREEN_DUMP_PORT);
 	process.exit(0);
 } else if (arg2 == 'server') {
-	if (process.argv[3] !== undefined) {
-		var arg3 = Number(process.argv[3]);
+	if (arg3 !== undefined) {
+		arg3 = Number(arg3);
 		if (!isNaN(arg3)) {
 			COMMON_CONFIG.SCREEN_DUMP_PORT = arg3;
 		} else {
@@ -35,7 +36,6 @@ if (arg2 == 'help') {
 		}
 	}
 } else if (arg2 == 'client') {
-	var arg3 = process.argv[3];
 	if (arg3 === undefined) {
 		para_num_err();
 	}
@@ -56,15 +56,15 @@ if (arg2 == 'help') {
 var app = undefined;
 if (arg2 == 'client') {
 	app = require('pm').createMaster({
-		'pidfile': __dirname + 'screen-dump-service-client.pid',
-		'statusfile': __dirname + 'status-client.log'
+		'pidfile': __dirname + '/screen-dump-service-client.pid',
+		'statusfile': __dirname + '/status-client.log'
 	});
 }
 
 if (arg2 == 'server') {
 	app = require('pm').createMaster({
-		'pidfile': __dirname + 'screen-dump-service-server.pid',
-		'statusfile': __dirname + 'status-server.log'
+		'pidfile': __dirname + '/screen-dump-service-server.pid',
+		'statusfile': __dirname + '/status-server.log'
 	});
 }
 

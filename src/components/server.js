@@ -75,7 +75,7 @@ var server = require('net').createServer(function(socket) {
 	});
 
 	// 为这个socket实例添加一个"close"事件处理函数
-	socket.on('close', function(data) {
+	socket.on('close', function() {
 		delete virtual_list[socket_map[socket]];
 		delete socket_map[socket];
 		saveVirtualList();
@@ -137,8 +137,7 @@ function processVirtualList(socket, data) {
 	var recv_arr = recv_bytebuf.byteArray(null, len[0]).unpack();
 	try {
 		var buf = new  Buffer(recv_arr[1]);
-		var obj = JSON.parse(buf.toString());
-		virtual_list[socket_map[socket]] = obj;
+		virtual_list[socket_map[socket]] = JSON.parse(buf.toString());
 		saveVirtualList();
 
 	} catch (e) {
