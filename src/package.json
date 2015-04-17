@@ -10,6 +10,7 @@
   "license": "BSD-2-Clause",
   "dependencies": {
       "log4js": "0.6.22",
-      "pm": "2.2.3"
+      "pm": "2.2.3",
+      "mysql": "2.6.1"
   }
 }

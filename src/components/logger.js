@@ -11,7 +11,7 @@ log4js.configure({
     maxLogSize: 20480,
     alwaysIncludePattern: false,
     backups: 10,
-    category: ['normal', 'server', 'client']
+    category: ['normal', 'server', 'client', 'mysql']
   }],
   replaceConsole: false
 });
@@ -19,9 +19,13 @@ log4js.configure({
 log4js.getLogger('normal').setLevel('DEBUG');
 log4js.getLogger('server').setLevel('DEBUG');
 log4js.getLogger('client').setLevel('DEBUG');
+log4js.getLogger('mysql').setLevel('DEBUG');
 //log4js.getLogger('normal').setLevel('INFO');
-//log4js.getLogger('asset').setLevel('INFO');
+//log4js.getLogger('server').setLevel('INFO');
+//log4js.getLogger('client').setLevel('INFO');
+//log4js.getLogger('mysql').setLevel('INFO');
 
 module.exports.normal = log4js.getLogger('normal');
 module.exports.server = log4js.getLogger('server');
 module.exports.client = log4js.getLogger('client');
+module.exports.mysql = log4js.getLogger('mysql');

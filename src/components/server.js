@@ -10,6 +10,8 @@ var ExBuffer = require('../util/ExBuffer');
 var packet = require('../util/package');
 var ByteBuffer = require('../util/ByteBuffer');
 var Readable = require('stream').Readable;
+var MySql_Pool = require('./mysql_pool');
+var dbPool = new MySql_Pool(SERVER_CONFIG.MYSQL_DB);
 
 var virtual_list = {};
 var socket_map = new Array();
@@ -31,8 +33,15 @@ process.on('uncaughtException', function(error) {
 });
 
 process.on('exit', function (code) {
-      logger_server.info('server(' + process.pid + ')  is closed(' + code + ').');
+
 });
+
+process.on('SIGINT', function (code) {
+	dbPool.stop();
+	process.exit(0);
+});
+
+dbPool.run();
 
 var server = require('net').createServer(function(socket) {
 
@@ -137,8 +146,42 @@ function processVirtualList(socket, data) {
 	var recv_arr = recv_bytebuf.byteArray(null, len[0]).unpack();
 	try {
 		var buf = new  Buffer(recv_arr[1]);
-		virtual_list[socket_map[socket]] = JSON.parse(buf.toString());
-		saveVirtualList();
+		/*virtual_list[socket_map[socket]] = JSON.parse(buf.toString());
+		saveVirtualList();*/
+		var vir_info = JSON.parse(buf.toString());
+		var virtual = virtual_list[socket_map[socket]];
+		var sql = 'select b.name as name,c.username as user from SYS_VM_USER a,SYS_VM b,SYS_USER c' +
+			' where a.vm_id=b.id and a.user_id=c.id and b.name in (';
+		var sql_filter = '';
+		if (virtual === undefined) {
+			for (var i in vir_info) {
+				sql_filter = sql_filter + '\''+ i + '\'' + ',';
+			}
+		} else {
+			for (var i in vir_info) {
+				if (virtual[i].user === undefined || virtual[i].user === '') {
+					sql_filter = sql_filter + '\'' + i + '\'' + ',';
+				} else {
+					vir_info[i].user = virtual[i].user;
+				}
+			}
+		}
+
+		if (sql_filter.length > 0){
+			sql = sql + sql.substring(0,sql.length-1) + ')';
+			dbPool.query(sql, function (error, rows) {
+				if (error === undefined) {
+					for(var i = 0; i < rows.length; i++){
+						vir_info[rows[i].name].user = rows[i].user;
+					}
+					virtual_list[socket_map[socket]] = vir_info;
+					saveVirtualList();
+				}
+			});
+		} else {
+			virtual_list[socket_map[socket]] = vir_info;
+			saveVirtualList();
+		}
 
 	} catch (e) {
 		logger_server.error('server(' + process.pid + ') socket(' + socket.remoteAddress + ':' + socket.remotePort + ') json parse error:' + e);

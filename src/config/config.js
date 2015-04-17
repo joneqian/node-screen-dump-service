@@ -8,7 +8,15 @@ exports.CLIENT_CONFIG = {
 
 exports.SERVER_CONFIG = {
 	VIRTUAL_LIST_PATH: '/home/qianqing/src/node-static-file-service/src/assets/device_catalog/virtual_list.json',
-	VIRTUAL_DUMP_PATH: '/home/qianqing/src/node-static-file-service/src/assets/screen_dump/'
+	VIRTUAL_DUMP_PATH: '/home/qianqing/src/node-static-file-service/src/assets/screen_dump/',
+	MYSQL_DB: {
+		connectionLimit : 3,
+		host            : '192.168.3.112',
+		port            : 3306,
+		user            : 'kvirt',
+		password        : '9824hfgdaf',
+		database        : 'kvirt_db'
+}
 };
 
 exports.COMMON_CONFIG = {

@@ -91,11 +91,11 @@ app.on('quit', function(name, pid, code, signal) {
 });
 
 if (arg2 == 'server') {
-	app.register('assetService', __dirname + '/components/server.js', {
+	app.register('screenServer', __dirname + '/components/server.js', {
 		'listen': [COMMON_CONFIG.SCREEN_DUMP_PORT],
 		'children': 2
 	});
-} else if (arg2 == 'client') {
+} else if (arg2 == 'screenClient') {
 	app.register('assetService', __dirname + '/components/client.js', {
 		'children': 1
 	});
