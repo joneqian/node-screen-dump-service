@@ -188,7 +188,8 @@ virshlistInterval = setInterval(function() {
 virshscreenInterval = setInterval(function() {
 	if (registerStatus) {
 		virshscreenUpdate(function(fileName) {
-			var readStream = fs.createReadStream(CLIENT_CONFIG.SCREENSHOT_PATH + fileName);
+			var opt = { flags: 'r', encoding: null,fd: null, mode: 0666, autoClose: true};
+			var readStream = fs.createReadStream(CLIENT_CONFIG.SCREENSHOT_PATH + fileName, opt);
 			var bufferHelper = new BufferHelper();
 
 			readStream.on('data', function(chunk) { // 当有数据流出时，写入数据

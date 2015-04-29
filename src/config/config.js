@@ -16,7 +16,7 @@ exports.SERVER_CONFIG = {
 		user            : 'kvirt',
 		password        : '9824hfgdaf',
 		database        : 'kvirt_db'
-}
+	}
 };
 
 exports.COMMON_CONFIG = {

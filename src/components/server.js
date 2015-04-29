@@ -168,15 +168,17 @@ function processVirtualList(socket, data) {
 		}
 
 		if (sql_filter.length > 0){
-			sql = sql + sql.substring(0,sql.length-1) + ')';
+			sql = sql + sql_filter.substring(0,sql_filter.length-1) + ')';
 			dbPool.query(sql, function (error, rows) {
-				if (error === undefined) {
+				if (error) {
+					logger_server.error('mysql error:' + error);
+				} else {
 					for(var i = 0; i < rows.length; i++){
 						vir_info[rows[i].name].user = rows[i].user;
 					}
-					virtual_list[socket_map[socket]] = vir_info;
-					saveVirtualList();
 				}
+				virtual_list[socket_map[socket]] = vir_info;
+				saveVirtualList();
 			});
 		} else {
 			virtual_list[socket_map[socket]] = vir_info;
@@ -199,8 +201,9 @@ function saveVirtualList() {
 	var rs = new Readable;
 	rs.push(JSON.stringify(virtual_list));
 	rs.push(null);
-	var writestream = fs.createWriteStream(SERVER_CONFIG.VIRTUAL_LIST_PATH);
-	rs.pipe(writestream);
+	var opt = { flags: 'w', encoding: null,fd: null, mode: 0666, autoClose: true};
+	var write_stream = fs.createWriteStream(SERVER_CONFIG.VIRTUAL_LIST_PATH, opt);
+	rs.pipe(write_stream);
 }
 
 function processVirtualDump(socket, data) {
@@ -214,9 +217,10 @@ function processVirtualDump(socket, data) {
 
 	var fileName = new Buffer(recv_arr[2]);
 	var rs = new Readable;
-	 var buf = new Buffer(recv_arr[3], 'utf8');
+	var buf = new Buffer(recv_arr[3], 'utf8');
 	rs.push(buf);
 	rs.push(null);
-	var writestream = fs.createWriteStream(SERVER_CONFIG.VIRTUAL_DUMP_PATH + fileName );
+	var opt = { flags: 'w', encoding: null,fd: null, mode: 0666, autoClose: true};
+	var writestream = fs.createWriteStream(SERVER_CONFIG.VIRTUAL_DUMP_PATH + fileName, opt);
 	rs.pipe(writestream);
 }
