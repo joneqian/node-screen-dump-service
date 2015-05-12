@@ -25,6 +25,7 @@ package.pack = function(commandID, data, cb) {
     var data_len = data.length;
     var packet_len = data_len + 4 + 2;
     var sendbuf = bytebuf.uint32(packet_len).ushort(commandID).byteArray(data, data_len).pack();
+    bytebuf = null;
 
     utils.invokeCallback(cb, null, sendbuf);
     return;
@@ -41,6 +42,7 @@ package.unpack = function(data, cb) {
 
     var len = data.length - 2;
     var resArr = bytebuf.ushort().byteArray(null, len).unpack();
+    bytebuf = null;
 
     var context = new Buffer(resArr[1]);
     //utils.invokeCallback(cb, null,resArr[0],context.toString());

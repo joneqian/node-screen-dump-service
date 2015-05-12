@@ -12,6 +12,12 @@ var ByteBuffer = require('../util/ByteBuffer');
 var Readable = require('stream').Readable;
 var MySql_Pool = require('./mysql_pool');
 var dbPool = new MySql_Pool(SERVER_CONFIG.MYSQL_DB);
+var ItemProvider = require('./ItemProvider').ItemProvider;
+var Db = require('mongodb').Db;
+var Server = require('mongodb').Server;
+var utils = require('../util/utils');
+
+var mongodb = new Db(COMMON_CONFIG.MONGODB.database, new Server(COMMON_CONFIG.MONGODB.host, COMMON_CONFIG.MONGODB.port, {auto_reconnect:true}, {}));
 
 var virtual_list = {};
 var socket_map = new Array();
@@ -43,112 +49,154 @@ process.on('SIGINT', function (code) {
 
 dbPool.run();
 
-var server = require('net').createServer(function(socket) {
+var itemProvider = new ItemProvider(db);
 
-	var recv_buffer = new ExBuffer().uint32Head().bigEndian();
-	recv_buffer.on('data', function(data) {
-		packet.unpack(data, function(error, command, buf) {
-			if (error) {
-				logger_server.error('server(' + process.pid + ') socket(' + socket.remoteAddress + ':' + socket.remotePort + ') unpack error:' + error);
-				socket.destroy();
-				return;
-			}
+db.open(function(err) {
+	if (err) {
+		logger_server.error(err);
+		process.exit(-1);
+	}
 
-			switch (command) {
-				case COMMAND.REGISTER_REQ:
-					processRegister(socket, buf);
-					break;
-				case COMMAND.UPDATE_VIRTUAL_LIST:
-					processVirtualList(socket, buf);
-					break;
-				case COMMAND.UPDATE_VIRTUAL_DUMP:
-					processVirtualDump(socket, buf);
-					break;
-				default:
+	var server = require('net').createServer(function(socket) {
+
+		var recv_buffer = new ExBuffer().uint32Head().bigEndian();
+		recv_buffer.on('data', function(data) {
+			packet.unpack(data, function(error, command, buf) {
+				if (error) {
+					logger_server.error('server(' + process.pid + ') socket(' + socket.remoteAddress + ':' + socket.remotePort + ') unpack error:' + error);
 					socket.destroy();
 					return;
-			}
+				}
+
+				switch (command) {
+					case COMMAND.REGISTER_REQ:
+						processRegister(buf, function(isOK, key){
+							var sendBuf = new ByteBuffer().encoding('utf8').bigEndian();
+							var send = sendBuf.ushort(isOK).pack();
+							sendBuf = null;
+
+							packet.pack(COMMAND.REGISTER_RES, send, function(error, buf) {
+								if (error) {
+									logger_server.error('server(' + process.pid + ') socket(' + socket.remoteAddress + ':' + socket.remotePort + ') pack error:' + error);
+									socket.destroy();
+									return;
+								}
+								socket.write(buf);
+								buf = null;
+
+								if (isOK) {
+									socket_map[socket] = key;
+								} else {
+									socket.destroy();
+								}
+							});
+						});
+						break;
+					case COMMAND.UPDATE_VIRTUAL_LIST:
+						processVirtualList(socket, buf);
+						break;
+					case COMMAND.UPDATE_VIRTUAL_DUMP:
+						processVirtualDump(socket, buf);
+						break;
+					default:
+						socket.destroy();
+						return;
+				}
+				buf = null;
+			});
 		});
-	});
-	// 我们获得一个连接 - 该连接自动关联一个socket对象
-	console.log('CONNECTED: ' + socket.remoteAddress + ':' + socket.remotePort);
+		// 我们获得一个连接 - 该连接自动关联一个socket对象
+		console.log('CONNECTED: ' + socket.remoteAddress + ':' + socket.remotePort);
 
-	// 为这个socket实例添加一个"data"事件处理函数
-	socket.on('data', function(data) {
-		recv_buffer.put(data);
-	});
+		// 为这个socket实例添加一个"data"事件处理函数
+		socket.on('data', function(data) {
+			recv_buffer.put(data);
+		});
 
-	// 为这个socket实例添加一个"end"事件处理函数
-	socket.on('end', function(data) {
+		// 为这个socket实例添加一个"end"事件处理函数
+		socket.on('end', function(data) {
 
-	});
+		});
 
-	// 为这个socket实例添加一个"close"事件处理函数
-	socket.on('close', function() {
-		delete virtual_list[socket_map[socket]];
-		delete socket_map[socket];
-		saveVirtualList();
-	});
+		// 为这个socket实例添加一个"close"事件处理函数
+		socket.on('close', function() {
+			delete virtual_list[socket_map[socket]];
+			delete socket_map[socket];
+			recv_buffer = null;
+			saveVirtualList();
+		});
 
-	// 为这个socket实例添加一个"error"事件处理函数
-	socket.on('error', function(error) {
-		logger_server.error('server(' + process.pid + ') socket(' + socket.remoteAddress + ':' + socket.remotePort + ') error:' + error);
+		// 为这个socket实例添加一个"error"事件处理函数
+		socket.on('error', function(error) {
+			logger_server.error('server(' + process.pid + ') socket(' + socket.remoteAddress + ':' + socket.remotePort + ') error:' + error);
+		});
+
 	});
 
 });
 
 function checkSocket(socket) {
-	if (socket_map[socket] === undefined) {
-		socket.destroy();
-		return false;
-	} else {
-		return true;
-	}
+	return socket_map[socket] ? socket_map[socket]:undefined;
 }
 
-function processRegister(socket, data) {
-	var recv_bytebuf = new ByteBuffer(data).encoding('utf8').bigEndian();
+function processRegister(data, cb) {
+	var recBuf = new ByteBuffer(data).encoding('utf8').bigEndian();
 	//get key len
-	var len = recv_bytebuf.ushort().unpack();
-	//get key array, key[0] is key len,key[1] is key string
-	var recv_arr = recv_bytebuf.byteArray(null, len[0]).unpack();
-	var isOK = 0;
-	var key = new Buffer(recv_arr[1]);
-	key = key.toString().split('@@');
-	if (key.length === 2 && key[0] === COMMON_CONFIG.KEY) {
-		isOK = 1;
+	var len = recBuf.ushort().unpack();
+	//get key array, [0] is key len,[1] is key string
+	var recArr = recBuf.byteArray(null, len[0]).unpack();
+	var key = new Buffer(recArr[1]);
+	var keys = key.toString().split('@@');
+	recBuf = null;
+	key = null;
+	if (keys.length === 2 && keys[0] === COMMON_CONFIG.KEY) {
+		db.collection(keys[1], function (error, collection) {
+			if (error) {
+				logger_server.log('mongodb error:' + error);
+				utils.invokeCallback(cb, 0, undefined);
+				return;
+			}
+
+			collection.stats(function(err, result){
+				if (err)
+				{
+					if (err['ok'] === 0 && err['errmsg'].indexOf('not found') !== -1){
+						db.createCollection('item', {capped: true, autoIndexId: true, size: 2048000, max: 50000}, function(err, collection){
+							if(err){
+								logger_server.log('mongodb create collection err:' + err);
+								utils.invokeCallback(cb, 0, undefined);
+								return;
+							}
+							utils.invokeCallback(cb, 1, keys[1]);
+						});
+					}
+					utils.invokeCallback(cb, 0, undefined);
+					return;
+				}
+				utils.invokeCallback(cb, 1, keys[1]);
+			});
+		});
+	} else {
+		utils.invokeCallback(cb, 0, undefined);
 	}
-
-	var send_bytebuf = new ByteBuffer().encoding('utf8').bigEndian();
-	var sendbuf = send_bytebuf.ushort(isOK).pack();
-	packet.pack(COMMAND.REGISTER_RES, sendbuf, function(error, buf) {
-		if (error) {
-			logger_server.error('server(' + process.pid + ') socket(' + socket.remoteAddress + ':' + socket.remotePort + ') pack error:' + error);
-			socket.destroy();
-			return;
-		}
-
-		socket.write(buf);
-		if (isOK) {
-			socket_map[socket] = key[1];
-		} else {
-			socket.destroy();
-		}
-	});
 }
 
 function processVirtualList(socket, data) {
-	if (!checkSocket(socket)) {
+	if (checkSocket(socket) === undefined) {
+		socket.destroy();
 		return;
 	}
 	var recv_bytebuf = new ByteBuffer(data).encoding('utf8').bigEndian();
 	var len = recv_bytebuf.ushort().unpack();
 	var recv_arr = recv_bytebuf.byteArray(null, len[0]).unpack();
+	recv_bytebuf = null;
+
 	try {
 		var buf = new  Buffer(recv_arr[1]);
 		/*virtual_list[socket_map[socket]] = JSON.parse(buf.toString());
 		saveVirtualList();*/
 		var vir_info = JSON.parse(buf.toString());
+		buf = null;
 		var virtual = virtual_list[socket_map[socket]];
 		var sql = 'select b.name as name,c.username as user from SYS_VM_USER a,SYS_VM b,SYS_USER c' +
 			' where a.vm_id=b.id and a.user_id=c.id and b.name in (';
@@ -204,23 +252,41 @@ function saveVirtualList() {
 	var opt = { flags: 'w', encoding: null,fd: null, mode: 0666, autoClose: true};
 	var write_stream = fs.createWriteStream(SERVER_CONFIG.VIRTUAL_LIST_PATH, opt);
 	rs.pipe(write_stream);
+	rs = null;
 }
 
 function processVirtualDump(socket, data) {
-	if (!checkSocket(socket)) {
+	var key = checkSocket(socket);
+	if (key === undefined) {
+		socket.destroy();
 		return;
 	}
 
-	var recv_bytebuf = new ByteBuffer(data).encoding('utf8').bigEndian();
-	var len = recv_bytebuf.ushort().uint32().unpack();
-	var recv_arr = recv_bytebuf.byteArray(null, len[0]).byteArray(null, len[1]).unpack();
+	var recBuf = new ByteBuffer(data).encoding('utf8').bigEndian();
+	var len = recBuf.ushort().uint32().unpack();
+	var recArr = recBuf.byteArray(null, len[0]).byteArray(null, len[1]).unpack();
+	recBuf = null;
 
-	var fileName = new Buffer(recv_arr[2]);
+	var fileName = new Buffer(recArr[2]);
 	var rs = new Readable;
-	var buf = new Buffer(recv_arr[3], 'utf8');
+	var buf = new Buffer(recArr[3], 'utf8');
 	rs.push(buf);
 	rs.push(null);
 	var opt = { flags: 'w', encoding: null,fd: null, mode: 0666, autoClose: true};
-	var writestream = fs.createWriteStream(SERVER_CONFIG.VIRTUAL_DUMP_PATH + fileName, opt);
-	rs.pipe(writestream);
+	var writeStream = fs.createWriteStream(SERVER_CONFIG.VIRTUAL_DUMP_PATH + fileName, opt);
+	rs.pipe(writeStream);
+	rs = null;
+
+
+	var item = {};
+	item.type = 'image/jpeg';
+	item.imgData = buf;
+	item.ts = new Date().getTime();
+	itemProvider.save(key, item, function (err, item) {
+		if(err){
+			logger_server.error('mongodb error:' + err);
+		}
+		fileName = null;
+		buf = null;
+	});
 }

@@ -23,7 +23,14 @@ exports.COMMON_CONFIG = {
 	LOG_PATH: path.dirname(__dirname) + '/logs/log',
 	SCREEN_DUMP_PORT: 1201,
 	SCREEN_DUMP_HOST: '127.0.0.1',
-	KEY: 'sanlogic'
+	KEY: 'sanlogic',
+	MONGODB: {
+		host			: '192.168.3.134',
+		port			: 27017,
+		database        : 'screen_dump',
+		collection_size : 2048000,
+		max				: 50000
+}
 };
 
 exports.COMMAND = {

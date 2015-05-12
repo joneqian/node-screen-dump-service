@@ -63,7 +63,7 @@ function connectServer() {
 	client.connect(COMMON_CONFIG.SCREEN_DUMP_PORT, COMMON_CONFIG.SCREEN_DUMP_HOST, function() {
 		logger_client.debug('connect to: ' + COMMON_CONFIG.SCREEN_DUMP_HOST + ':' + COMMON_CONFIG.SCREEN_DUMP_PORT);
 		connectedStatus = true;
-		exBuffer = undefined;
+		exBuffer = null;
 		exBuffer = new ExBuffer().uint32Head().bigEndian();
 		exBuffer.on('data', function(data) {
 			packet.unpack(data, function(error, command, buf) {
@@ -112,6 +112,7 @@ function sendRegisterReq() {
 	var buf = new Buffer(buf_len);
 	buf.write(key);
 	var sendbuf = bytebuf.ushort(buf_len).byteArray(buf, buf_len).pack();
+	bytebuf = null;
 	packet.pack(COMMAND.REGISTER_REQ, sendbuf, function(err, buf) {
 		if (err) {
 			logger_client.error('register pack error: ' + err);
@@ -119,12 +120,14 @@ function sendRegisterReq() {
 		}
 
 		client.write(buf);
+		buf = null;
 	});
 }
 
 function processRegister(data) {
 	var recv_bytebuf = new ByteBuffer(data).encoding('utf8').bigEndian();
 	var res = recv_bytebuf.ushort().unpack();
+	recv_bytebuf = null;
 
 	if (res[0] === 1) {
 		registerStatus = true;
@@ -146,6 +149,8 @@ function virshlistUpdate() {
 		var buf = new Buffer(buf_len);
 		buf.write(stdout);
 		var sendbuf = bytebuf.ushort(buf_len).byteArray(buf, buf_len).pack();
+		bytebuf = null;
+		buf = null;
 		packet.pack(COMMAND.UPDATE_VIRTUAL_LIST, sendbuf, function(err, buf) {
 			if (err) {
 				logger_client.error('update virsh list pack error: ' + err);
@@ -153,6 +158,7 @@ function virshlistUpdate() {
 			}
 
 			client.write(buf);
+			buf = null;
 		});
 
 	});
@@ -199,18 +205,22 @@ virshscreenInterval = setInterval(function() {
 			readStream.on('end', function(chunk) { // 当有数据流出时，写入数据
 				var bytebuf = new ByteBuffer().encoding('utf8').bigEndian();
 				var fileData = bufferHelper.toBuffer();
+				bufferHelper = null;
 
 				var name_len = Buffer.byteLength(fileName);
 				var namebuf = new Buffer(name_len);
 				namebuf.write(fileName);
 
 				var sendbuf = bytebuf.ushort(name_len).uint32(fileData.length).byteArray(namebuf, name_len).byteArray(fileData, fileData.length).pack();
+				bytebuf = null;
+				namebuf = null;
 				packet.pack(COMMAND.UPDATE_VIRTUAL_DUMP, sendbuf, function(err, buf) {
 					if (err) {
 						console.error('pack error: ' + err);
 						return;
 					}
 					client.write(buf);
+					buf = null;
 				});
 			});
 		});

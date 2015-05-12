@@ -11,6 +11,9 @@
   "dependencies": {
       "log4js": "0.6.22",
       "pm": "2.2.3",
-      "mysql": "2.6.1"
+      "mysql": "2.6.1",
+      "mongodb": "2.0.31",
+      "gridform": "0.1.7",
+      "gridfs-stream": "1.1.1"
   }
 }
