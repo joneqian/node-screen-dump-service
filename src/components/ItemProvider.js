@@ -27,12 +27,11 @@ ItemProvider.prototype.save = function (collName, item, callback) {
     });
 };
 
-ItemProvider.prototype.find = function (collName, filter, callback) {
+ItemProvider.prototype.find = function (collName, filter, col, sort, callback) {
     this.getCollection(collName, function (error, collection) {
-        if (error)
-            callback(error)
+        if (error) callback(error)
         else {
-            collection.find(filter).toArray(function(err, documents) {
+            collection.find(filter, col, sort).toArray(function(err, documents) {
                 callback(null,documents);
             });
         }

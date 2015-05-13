@@ -17,50 +17,53 @@ var Db = require('mongodb').Db;
 var Server = require('mongodb').Server;
 var utils = require('../util/utils');
 
-var mongodb = new Db(COMMON_CONFIG.MONGODB.database, new Server(COMMON_CONFIG.MONGODB.host, COMMON_CONFIG.MONGODB.port, {auto_reconnect:true}, {}));
+var mongodb = new Db(COMMON_CONFIG.MONGODB.database, new Server(COMMON_CONFIG.MONGODB.host, COMMON_CONFIG.MONGODB.port,
+	{auto_reconnect:true, poolSize:COMMON_CONFIG.MONGODB.poolSize}));
 
 var virtual_list = {};
 var socket_map = new Array();
-
-worker.on('message', function(data, from, pid) {
-
-});
-
-worker.ready(function(socket, which) {
-	server.emit('connection', socket);
-});
-
-worker.on('suicide', function(by) {
-	logger_server.info('suicide by ' + by);
-});
 
 process.on('uncaughtException', function(error) {
 	logger_server.error('Caught Exception:server(' + process.pid + ') ' + error);
 });
 
 process.on('exit', function (code) {
-
+	dbPool.stop();
+	mongodb.close();
 });
 
 process.on('SIGINT', function (code) {
 	dbPool.stop();
+	mongodb.close();
 	process.exit(0);
 });
 
 dbPool.run();
 
-var itemProvider = new ItemProvider(db);
+var itemProvider = new ItemProvider(mongodb);
 
-db.open(function(err) {
+mongodb.open(function(err) {
 	if (err) {
 		logger_server.error(err);
 		process.exit(-1);
 	}
 
+	worker.on('message', function(data, from, pid) {
+
+	});
+
+	worker.ready(function(socket, which) {
+		server.emit('connection', socket);
+	});
+
+	worker.on('suicide', function(by) {
+		logger_server.info('suicide by ' + by);
+	});
+
 	var server = require('net').createServer(function(socket) {
 
-		var recv_buffer = new ExBuffer().uint32Head().bigEndian();
-		recv_buffer.on('data', function(data) {
+		var recBuffer = new ExBuffer().uint32Head().bigEndian();
+		recBuffer.on('data', function(data) {
 			packet.unpack(data, function(error, command, buf) {
 				if (error) {
 					logger_server.error('server(' + process.pid + ') socket(' + socket.remoteAddress + ':' + socket.remotePort + ') unpack error:' + error);
@@ -110,7 +113,7 @@ db.open(function(err) {
 
 		// 为这个socket实例添加一个"data"事件处理函数
 		socket.on('data', function(data) {
-			recv_buffer.put(data);
+			recBuffer.put(data);
 		});
 
 		// 为这个socket实例添加一个"end"事件处理函数
@@ -122,7 +125,7 @@ db.open(function(err) {
 		socket.on('close', function() {
 			delete virtual_list[socket_map[socket]];
 			delete socket_map[socket];
-			recv_buffer = null;
+			recBuffer = null;
 			saveVirtualList();
 		});
 
@@ -150,7 +153,7 @@ function processRegister(data, cb) {
 	recBuf = null;
 	key = null;
 	if (keys.length === 2 && keys[0] === COMMON_CONFIG.KEY) {
-		db.collection(keys[1], function (error, collection) {
+		mongodb.collection(keys[1], function (error, collection) {
 			if (error) {
 				logger_server.log('mongodb error:' + error);
 				utils.invokeCallback(cb, 0, undefined);
@@ -161,7 +164,9 @@ function processRegister(data, cb) {
 				if (err)
 				{
 					if (err['ok'] === 0 && err['errmsg'].indexOf('not found') !== -1){
-						db.createCollection('item', {capped: true, autoIndexId: true, size: 2048000, max: 50000}, function(err, collection){
+						mongodb.createCollection('item', {capped: true, autoIndexId: true,
+								size: COMMON_CONFIG.MONGODB.collection_size, max: COMMON_CONFIG.MONGODB.collection_max},
+							function(err, collection){
 							if(err){
 								logger_server.log('mongodb create collection err:' + err);
 								utils.invokeCallback(cb, 0, undefined);
@@ -281,7 +286,7 @@ function processVirtualDump(socket, data) {
 	var item = {};
 	item.type = 'image/jpeg';
 	item.imgData = buf;
-	item.ts = new Date().getTime();
+	item.ts = new Date();
 	itemProvider.save(key, item, function (err, item) {
 		if(err){
 			logger_server.error('mongodb error:' + err);

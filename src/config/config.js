@@ -28,9 +28,10 @@ exports.COMMON_CONFIG = {
 		host			: '192.168.3.134',
 		port			: 27017,
 		database        : 'screen_dump',
+		poolSize		: 5,
 		collection_size : 2048000,
-		max				: 50000
-}
+		collection_max	: 50000
+	}
 };
 
 exports.COMMAND = {
