@@ -33,8 +33,6 @@ process.on('exit', function (code) {
 });
 
 process.on('SIGINT', function (code) {
-	dbPool.stop();
-	mongodb.close();
 	process.exit(0);
 });
 
@@ -153,34 +151,7 @@ function processRegister(data, cb) {
 	recBuf = null;
 	key = null;
 	if (keys.length === 2 && keys[0] === COMMON_CONFIG.KEY) {
-		mongodb.collection(keys[1], function (error, collection) {
-			if (error) {
-				logger_server.log('mongodb error:' + error);
-				utils.invokeCallback(cb, 0, undefined);
-				return;
-			}
-
-			collection.stats(function(err, result){
-				if (err)
-				{
-					if (err['ok'] === 0 && err['errmsg'].indexOf('not found') !== -1){
-						mongodb.createCollection('item', {capped: true, autoIndexId: true,
-								size: COMMON_CONFIG.MONGODB.collection_size, max: COMMON_CONFIG.MONGODB.collection_max},
-							function(err, collection){
-							if(err){
-								logger_server.log('mongodb create collection err:' + err);
-								utils.invokeCallback(cb, 0, undefined);
-								return;
-							}
-							utils.invokeCallback(cb, 1, keys[1]);
-						});
-					}
-					utils.invokeCallback(cb, 0, undefined);
-					return;
-				}
-				utils.invokeCallback(cb, 1, keys[1]);
-			});
-		});
+		utils.invokeCallback(cb, 1, keys[1]);
 	} else {
 		utils.invokeCallback(cb, 0, undefined);
 	}
@@ -261,8 +232,8 @@ function saveVirtualList() {
 }
 
 function processVirtualDump(socket, data) {
-	var key = checkSocket(socket);
-	if (key === undefined) {
+	var host = checkSocket(socket);
+	if (host === undefined) {
 		socket.destroy();
 		return;
 	}
@@ -287,7 +258,10 @@ function processVirtualDump(socket, data) {
 	item.type = 'image/jpeg';
 	item.imgData = buf;
 	item.ts = new Date();
-	itemProvider.save(key, item, function (err, item) {
+	var reg = /\.\w+$/;
+
+	var name = host + '##' + fileName.toString().replace(reg,'');
+	itemProvider.saveEX(name, item, function (err, item) {
 		if(err){
 			logger_server.error('mongodb error:' + err);
 		}
